@@ -12,11 +12,20 @@ This synthetic reference project uses **Snowflake Notebooks on a compute pool, T
 
 ## Architecture
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/rideflow_architecture_dark.png">
+  <img alt="RideFlow architecture: one set of contracts drives domain databases, shared Gold, quarantine and run metadata on Snowflake" src="docs/images/rideflow_architecture_light.png">
+</picture>
+
 Domains maintain their own contract trees and publish products in separate databases (`RIDEFLOW_DEV_<DOMAIN>`). Shared Gold products consume outputs across domain boundaries; reusable notebooks and deployment tooling provide the common platform.
 
 **Why this is a mesh pattern:** domain-local definitions, consumer-facing products, reusable platform execution and shared governance conventions. Database separation and declared owners do not automatically establish team permissions; grant roles on each domain database explicitly.
 
 Domains: Marketplace, Payments, Operations, Marketing, Business, Reference and Shared. The contract tree is authoritative. [Explore the architecture](docs/architecture.md)
+
+![One database per domain in Snowsight: RIDEFLOW_DEV_MARKETPLACE with BRONZE, SILVER, GOLD, QUARANTINE, LAKELOGIC and FILES schemas](docs/images/snowflake_domain_databases.png)
+
+*RideFlow reference project · synthetic data. In Snowsight after a run: a database per domain, each with its own layer, quarantine, run-log and landing schemas.*
 
 | Path | Contents |
 | --- | --- |
@@ -54,6 +63,13 @@ Without `--run`, it deploys only; then execute the **`pl_data_00_mesh_orchestrat
 
 *RideFlow reference project · synthetic data. A mesh run in Snowsight.*
 
+<details>
+<summary>The mesh orchestrator task graph</summary>
+
+![The pl_data_00_mesh_orchestrator task graph: one task per system, ordered by cross-domain dependencies](docs/images/snowflake_mesh_orchestrator.png)
+
+</details>
+
 **Notebooks need LakeLogic.** They install it from PyPI through an external access integration (`SNOWFLAKE_PYPI_INTEGRATION` in `.env`). Without one, they install from wheels staged in the `"pipeline"."wheels"` stage.
 
 **Test without live sources.** The `pl_test_synthetic_seed` task generates synthetic inputs from Bronze contracts, including PDFs, images and Word documents. Synthetic rows carry a `_synthetic` marker through Silver and Gold.
@@ -73,6 +89,10 @@ Follow Marketplace requests and completed trips, join Payments charges, and insp
 *RideFlow reference project · synthetic data. Use your deployment's tables and logs to verify the revision you run.*
 
 - Configured row failures may enter quarantine; dataset gates and execution errors can stop a run.
+
+![Quarantined rows in Snowsight, each with the failed rule and its category](docs/images/snowflake_quarantine_rows.png)
+
+*RideFlow reference project · synthetic data, seeded with deliberately invalid rows. Each rejected row keeps the rule it failed in `_LAKELOGIC_ERRORS`.*
 - Contract definitions and CI checks are distinct from successful Snowflake execution. Use dated runs and output checks for the exact revision deployed.
 - Synthetic tests do not establish production performance, security or business correctness. Retention and erasure tasks do not establish end-to-end GDPR compliance.
 - Review permissions, realistic SLOs, recovery and operating costs before production use.

@@ -1,11 +1,10 @@
 # Iceberg roadmap — making the Snowflake mesh an open lakehouse
 
-The current build is **fully Snowflake-native**: LakeLogic's `snowflake` engine runs
-contracts as SQL and persists ordinary Snowflake tables (proprietary FDN format,
-Snowflake-managed storage). No Spark, no open table format.
+The current build is Snowflake-native: LakeLogic's `snowflake` engine runs contracts as
+SQL and writes ordinary Snowflake tables in Snowflake-managed storage. There is no Spark
+and no open table format.
 
-This note captures how to evolve it to **open Apache Iceberg** — deferred until the
-native Project ships, but scoped here so nothing is lost.
+This note scopes how the project could move to Apache Iceberg. None of it is built.
 
 ## Delta vs Iceberg on Snowflake
 
@@ -28,7 +27,6 @@ write** Snowflake-managed Iceberg v2/v3 tables (GA). Supported engines include
   S3/Azure/GCS bucket; Horizon holds only metadata).
 - **Privileges:** read = `SELECT` + `USAGE`; write = `INSERT/UPDATE/DELETE/TRUNCATE` +
   `USAGE`; create = `CREATE ICEBERG TABLE` on the schema + `USAGE` on the external volume.
-- **Billing:** 0.5 credit / million API calls (starts H2 2026) — negligible.
 
 Spark catalog config (note `.warehouse` = the Snowflake **database** name):
 
@@ -49,8 +47,8 @@ spark.sql.catalog.<cat>.header.X-Iceberg-Access-Delegation = vended-credentials
 | **A · Snowflake-managed Iceberg** | Snowflake | Horizon | your bucket (ext. volume) | ✅ writer | ✅ | No | moderate |
 | **B · LakeLogic → Horizon REST** | **LakeLogic Spark** | Horizon (built-in) | your bucket (ext. volume) | ✅ read/query | ✅ | Yes | large |
 
-- **A (light):** keep the `snowflake` engine; change the persist step from native
-  `write_pandas` to `CREATE ICEBERG TABLE … EXTERNAL_VOLUME=…` (Snowflake owns writes).
+- **A (light):** keep the `snowflake` engine; create the target tables with
+  `CREATE ICEBERG TABLE … EXTERNAL_VOLUME=…` instead of ordinary tables (Snowflake owns writes).
   Tables become open + externally readable. No Spark, no compute pool.
 - **B (full/open):** run LakeLogic's **`spark`** engine (e.g. via **Snowpark Connect** on
   a compute pool, or any Spark) configured against the **Horizon REST catalog** above, so
@@ -67,7 +65,7 @@ remove the need for a storage bucket.
 
 ## Recommended sequence
 
-1. Ship the native Project (notebooks + Task DAG) — in progress.
+1. The native project (notebooks and task graphs) is shipped.
 2. **A** — stand up one bucket + external volume, switch Gold (then all layers) to
    Snowflake-managed Iceberg. Smallest change, open format, no Spark.
 3. **B** — when full engine-agnostic parity + LakeLogic-as-writer is wanted, wire the
