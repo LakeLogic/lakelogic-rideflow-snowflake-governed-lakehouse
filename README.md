@@ -1,4 +1,4 @@
-# RideFlow: a governed data mesh on Snowflake
+# RideFlow: Data Platform Architecture on Snowflake
 
 **Build a decentralised Snowflake lakehouse with shared governance.**
 
