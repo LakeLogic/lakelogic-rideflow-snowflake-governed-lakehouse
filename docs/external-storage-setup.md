@@ -1,16 +1,19 @@
 # External storage (AWS S3 / Azure / GCP) for the RideFlow landing zone
 
-The default demo lands data into Snowflake-managed internal storage (a `LANDING` schema of
-tables, optionally via an internal stage). To make landing an **open, object-store file
-zone** — files in *your* bucket, read by **external tables** (schema-on-read, auto-refresh,
-no `COPY INTO`, no engine change) — you point Snowflake at your cloud storage.
+The project lands files on an internal stage in each domain database
+(`RIDEFLOW_DEV_<DOMAIN>.FILES.LANDING`), and Bronze loads them with `COPY INTO`. To keep
+landing files in your own bucket instead, point Snowflake at your cloud storage with a
+storage integration and an external stage.
+
+> **Not wired in this project.** The steps below set up the Snowflake side. The generated
+> runtime still reads the internal stage; switching Bronze to the external stage is not
+> built yet.
 
 The same storage also backs **Iceberg** tables later (via an *external volume*) — see
 [iceberg-roadmap.md](iceberg-roadmap.md).
 
-> **Trial note:** External *access* integrations are blocked on trial accounts, but
-> **storage integrations, external stages, and external tables are allowed** — this works
-> on a trial.
+Trial accounts block external *access* integrations, but allow storage integrations,
+external stages and external tables, so these steps work on a trial.
 
 Two building blocks, per cloud:
 1. A **storage integration** (recommended — no secret in SQL) *or* inline stage credentials.
@@ -42,8 +45,8 @@ trusting the `STORAGE_AWS_IAM_USER_ARN` and the `STORAGE_AWS_EXTERNAL_ID` from `
 CREATE STAGE landing_ext URL = 's3://<bucket>/landing/'
   CREDENTIALS = (AWS_KEY_ID = '...' AWS_SECRET_KEY = '...');   -- or AWS_TOKEN for temp creds
 ```
-**What to provide:** bucket + region; and either (integration) create the IAM role and give
-me the **role ARN**, or (inline) an access key/secret.
+**You need:** the bucket and region, and either the IAM role ARN (integration) or an
+access key and secret (inline).
 
 ---
 
@@ -68,8 +71,8 @@ Then: open the **AZURE_CONSENT_URL** and approve; in the **Azure portal** → th
 CREATE STAGE landing_ext URL = 'azure://<account>.blob.core.windows.net/<container>/landing/'
   CREDENTIALS = (AZURE_SAS_TOKEN = '?sv=...');
 ```
-**What to provide:** account + container; and either the **tenant ID** (integration, then
-approve consent + grant the role), or a **SAS token** with read/write/list/delete.
+**You need:** the storage account and container, and either the tenant ID (integration,
+then approve consent and grant the role) or a SAS token with read, write, list and delete.
 
 ---
 
@@ -90,7 +93,7 @@ Then in **GCP IAM**: grant that service account **Storage Object Viewer** (read)
 > **GCS has no inline-credential stage** — a GCS external stage **must** use a storage
 > integration (unlike S3/Azure). So the integration route is required for GCP.
 
-**What to provide:** bucket; then grant the Snowflake service account IAM on it.
+**You need:** the bucket, with IAM granted to the Snowflake service account.
 
 ---
 
@@ -114,8 +117,8 @@ CREATE OR REPLACE EXTERNAL TABLE LANDING.<system>_<entity> (
   PATTERN = '.*[.]csv'
   AUTO_REFRESH = TRUE;   -- reflects new files as they land
 ```
-Bronze's `source: table:{catalog}.LANDING.<system>_<entity>` then reads the external table
-directly — **no `COPY INTO`, no LakeLogic engine change**.
+A Bronze contract could then read the external table as a table source instead of
+loading files with `COPY INTO`. This project does not do that yet.
 
 - **Auto-refresh** needs cloud event notifications (S3 → SNS/SQS, Azure → Event Grid,
   GCS → Pub/Sub). Without them, run `ALTER EXTERNAL TABLE … REFRESH;` (or on a schedule).
@@ -142,5 +145,5 @@ external bucket with the cloud's own tools/SDK, then the external tables read th
 - **Azure:** `az storage blob upload-batch` / azcopy / `azure-storage-blob`
 - **GCP:** `gsutil -m cp -r` / `google-cloud-storage`
 
-A `--external` landing mode (generate → upload to the bucket → create external tables) can
-be wired into `runtime/landing.py` once a bucket + credentials are configured in `deploy/.env`.
+The synthetic seed writes to the internal stage only. Seeding an external bucket is not
+built.
