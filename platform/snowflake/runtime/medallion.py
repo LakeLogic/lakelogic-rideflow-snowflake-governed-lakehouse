@@ -68,7 +68,10 @@ def _apply_scd2_first_load(df, cd):
         # a stable hash of the business columns.
         import hashlib
         biz = [c for c in df.columns if c.upper() not in {ef, et, cf, sk} and not str(c).startswith("_")]
-        df[cols[sk]] = df[biz].astype(str).agg("|".join, axis=1).map(
+        # A missing value joins as "": pandas 3 leaves it a float NaN after astype(str), and the
+        # join failed ("expected str instance, float found", 2026-11-02).
+        df[cols[sk]] = df[biz].apply(
+            lambda row: "|".join("" if v is None or v != v else str(v) for v in row), axis=1).map(
             lambda x: hashlib.md5(x.encode()).hexdigest())
     return df
 
@@ -411,6 +414,8 @@ def run_layer(conn, database, sys_yaml, layer, log=print, environment="dev", con
             if in_place:
                 # Results stay in Snowflake and are counted there: written below, never read here.
                 adapter.keep_results_in_warehouse = True
+                # An incremental source reads only what is newer than this target's latest.
+                adapter.incremental_target = f'"{db}"."{schema}"."{table.upper()}"'
             good, bad = proc.run(source_ref)
             if in_place and getattr(adapter, "good_table", None):
                 # IN PLACE: the results are already tables in this session. Written by the
